@@ -48,8 +48,8 @@ set_color_hex = function(hexcolor)
         g = string.rep(string.sub(hexcolor, 2, 2), 2)
         b = string.rep(string.sub(hexcolor, 3, 3), 2)
     elseif length == 1 then
-        hexcolor = string.sub(hexcolor, 1, 1)
-        r, g, b = string.rep(hexcolor, 2), string.rep(hexcolor, 2), string.rep(hexcolor, 2)
+        local c = string.rep(string.sub(hexcolor, 1, 1), 2)
+        r, g, b = c, c, c
     end
 
     r, g, b = tonumber(r, 16), tonumber(g, 16), tonumber(b, 16)
