@@ -7,7 +7,7 @@ A simple script for controlling RGB LEDs with [NodeMCU](http://nodemcu.com/index
 You will need a means to flash the firmware binary to your ESP. Install esptool.py using `pip`
 
 ```
-# pip install esptool.py
+# pip install esptool
 ```
 
 Also, you will have to persist the `init.lua` script to the ESP's flash memory. This can be done either by writing lua code manually to the serial port of the ESP or preferably by using a tool like [ESPlorer](https://github.com/4refr0nt/ESPlorer).
