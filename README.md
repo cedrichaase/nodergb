@@ -1,5 +1,4 @@
 # NodeRGB
-
 A simple script for controlling RGB LEDs with [NodeMCU](http://nodemcu.com/index_en.html)
 
 ## Prerequisites
@@ -10,8 +9,7 @@ You will need a means to flash the firmware binary to your ESP. Install esptool 
 # pip3 install adafruit-ampy
 ```
 
-## Setup
-
+## Install firmware
 Connect a NodeMCU to your computer. Then, in `flash.sh`, edit the esptool.py `DEV` constant to point to the NodeMCU serial port.
 
 Now, execute flash.sh to flash the firmware binary:
@@ -23,7 +21,6 @@ $ ./flash.sh
 Edit `boot.py` and change the `WIFI_SSID` and `WIFI_PASS` variables to whatever the login credentials for your wireless network are.
 
 ## Integrity check
-
 First, get a python REPL on the NodeMCU using picocom:
 
 ```
@@ -41,6 +38,16 @@ True
 ```
 
 Close picocom by `Ctrl+b` followed by a `Ctrl+x`.
+
+## Upload python code
+Finally install both python scripts using `ampy`:
+
+```
+ampy --port $DEV put boot.py
+ampy --port $DEV put main.py
+```
+
+After reset, the NodeMCU will first run boot.py and then main.py. Congrats, you're done!
 
 ## Usage
 
