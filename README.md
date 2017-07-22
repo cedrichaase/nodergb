@@ -3,31 +3,44 @@
 A simple script for controlling RGB LEDs with [NodeMCU](http://nodemcu.com/index_en.html)
 
 ## Prerequisites
-
-You will need a means to flash the firmware binary to your ESP. Install esptool.py using `pip`
+You will need a means to flash the firmware binary to your ESP. Install esptool and ampy using `pip`
 
 ```
 # pip install esptool
+# pip3 install adafruit-ampy
 ```
-
-Also, you will have to persist the `init.lua` script to the ESP's flash memory. This can be done either by writing lua code manually to the serial port of the ESP or preferably by using a tool like [ESPlorer](https://github.com/4refr0nt/ESPlorer).
-
 
 ## Setup
 
-Connect a NodeMCU to your computer. Then, in `flash.sh`, edit the esptool.py `--port` parameter to point to the NodeMCU serial port.
+Connect a NodeMCU to your computer. Then, in `flash.sh`, edit the esptool.py `DEV` constant to point to the NodeMCU serial port.
 
-Make sure the device is ready to be flashed. Now, execute flash.sh to flash the firmware binary.
+Now, execute flash.sh to flash the firmware binary:
 
 ```
 $ ./flash.sh
 ```
 
-Edit `init.lua` and change the `WIFI_SSID` and `WIFI_PASS` variables to whatever the login credentials for your wireless network are.
+Edit `boot.py` and change the `WIFI_SSID` and `WIFI_PASS` variables to whatever the login credentials for your wireless network are.
 
-Using [ESPlorer](https://github.com/4refr0nt/ESPlorer) or any other method, write `init.lua` to your NodeMCU's flash memory.
+## Integrity check
 
+First, get a python REPL on the NodeMCU using picocom:
 
+```
+$ picocom -b 115200 /dev/ttyUSB0
+```
+
+Then enter two lines of python code to verify firmware integrity:
+
+```
+>>> import esp
+>>> esp.check_fw()
+size: 598416
+md5: dae90ece36362127bce73f27cefe47fd
+True
+```
+
+Close picocom by `Ctrl+b` followed by a `Ctrl+x`.
 
 ## Usage
 
