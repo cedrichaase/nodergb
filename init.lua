@@ -103,6 +103,9 @@ pwm.start(PIN_1_RED)
 pwm.start(PIN_1_GREEN)
 pwm.start(PIN_1_BLUE)
 
+-- set color to warm white
+set_color_hex(2, 'ff8a14');
+
 -- setup wifi
 wifi.setmode(wifi.STATION)
 wifi.sta.config(WIFI_SSID, WIFI_PASS)
