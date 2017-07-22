@@ -1,8 +1,15 @@
 #!/bin/bash
-DEV=1420
+BIN=./esp8266-20170612-v1.9.1.bin
+DEV=/dev/ttyUSB0
 
+# check requirements
 which esptool.py || exit 1
+which ampy || exit 1
 
-esptool.py --port="/dev/cu.wchusbserial${DEV}" erase_flash
-esptool.py --port="/dev/cu.wchusbserial${DEV}" write_flash -fm=dio -fs=32m 0x00000 ./nodemcu-master-9-modules-2017-05-10-13-11-01-float.bin
+# erase and flash
+esptool.py --port="$DEV" erase_flash
+esptool.py --port="$DEV" write_flash -fm=dio -fs=4MB 0x00000 $BIN
 
+# install files
+#ampy --port $DEV put boot.py
+#ampy --port $DEV put main.py
