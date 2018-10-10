@@ -7,17 +7,12 @@ PIN_1_RED   = 5
 PIN_1_GREEN = 6
 PIN_1_BLUE  = 7
 
-
 -- LED PWM settings (1-1000)
 PWM_FREQ = 500
 
 -- WIFI settings
-WIFI_SSID = "ssid"
+WIFI_SSID = "changeme"
 WIFI_PASS = "changeme"
-
--- RGB Service settings
-SERVICE_UDP_PORT = 1337
-SERVICE_TCP_PORT = 1338
 
 -- trims a string
 function string_trim(s)
@@ -108,30 +103,33 @@ set_color_hex(2, 'ff8a14');
 
 -- setup wifi
 wifi.setmode(wifi.STATION)
-wifi.sta.config(WIFI_SSID, WIFI_PASS)
+wifi.sta.config({ssid=WIFI_SSID, pwd=WIFI_PASS, got_ip_cb=(function()
+    print("got ip: " .. wifi.sta.getip())
 
--- setup udp service
-socket=net.createUDPSocket()
-socket:on("receive", function(sck, payload)
-    payload = string_split(string_trim(payload), ':')
-    if payload[2] then
-        set_color_hex(tonumber(payload[1]), payload[2])
-    else
-        set_color_hex(2, payload[1])
-    end
-end)
-socket:listen(SERVICE_UDP_PORT)
+    mqtt_client = mqtt.Client("clientid", 120)
 
--- setup tcp service
-server=net.createServer(net.TCP)
-server:listen(SERVICE_TCP_PORT, function(conn)
-    payload = string_trim(payload)
-    if payload == "q" then conn:close(); return end 
+    mqtt_client:connect("192.168.7.137", 1883, 0, function(client)
+      print("connected")
     
-    payload = string_split(payload, ':')
-    if payload[2] then
-        set_color_hex(tonumber(payload[1]), payload[2])
-    else
-        set_color_hex(2, payload[1])
-    end
-end)
+      local color_topic = "/" .. wifi.sta.gethostname() .. "/color"
+
+      -- subscribe to color topic
+      client:subscribe(color_topic, 0, function(client)
+        print("subscribed to " .. color_topic)
+      end)
+
+      -- handle color messages
+      client:on("message", function(client, topic, message)
+        local payload = string_split(string_trim(message), ':')
+        
+        if payload[2] then
+            set_color_hex(tonumber(payload[1]), payload[2])
+        else
+            set_color_hex(2, payload[1])
+        end
+      end)
+    end,
+    function(client, reason)
+        print("MQTT connection failed, reason: " .. reason)
+    end)    
+end)})
