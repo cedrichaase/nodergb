@@ -14,6 +14,10 @@ PWM_FREQ = 500
 WIFI_SSID = "changeme"
 WIFI_PASS = "changeme"
 
+-- MQTT settings
+MQTT_BROKER_HOST = "rainboschwan"
+MQTT_TOPIC_PREFIX = "home/light1"
+
 -- trims a string
 function string_trim(s)
   return (s:gsub("^%s*(.-)%s*$", "%1"))
@@ -57,32 +61,6 @@ set_color = function(addr, red, green, blue)
     end
 end
 
--- parse, convert and set a color in hex format (e.g. f1c2d0, fc0, e)
-set_color_hex = function(addr, hexcolor)
-    if hexcolor == nil then return end
-
-    local length = string.len(hexcolor)
-
-    r, g, b = 0, 0, 0
-
-    if length == 6 then
-        r = string.sub(hexcolor, 1, 2)
-        g = string.sub(hexcolor, 3, 4)
-        b = string.sub(hexcolor, 5, 6)
-    elseif length == 3 then
-        r = string.rep(string.sub(hexcolor, 1, 1), 2)
-        g = string.rep(string.sub(hexcolor, 2, 2), 2)
-        b = string.rep(string.sub(hexcolor, 3, 3), 2)
-    elseif length == 1 then
-        local c = string.rep(string.sub(hexcolor, 1, 1), 2)
-        r, g, b = c, c, c
-    end
-
-    r, g, b = tonumber(r, 16), tonumber(g, 16), tonumber(b, 16)
-    set_color(addr, r, g, b)
-end
-
-
 -- setup pwms
 pwm.setup(PIN_0_RED,   PWM_FREQ, 0)
 pwm.setup(PIN_0_GREEN, PWM_FREQ, 0)
@@ -101,6 +79,14 @@ pwm.start(PIN_1_BLUE)
 -- set color to warm white
 set_color_hex(2, 'ff8a14');
 
+
+mqtt_subscribe = function(client, topic)
+  client:subscribe(topic, 0, function(client)
+    print("subscribed to " .. topic)
+  end)
+end
+
+
 -- setup wifi
 wifi.setmode(wifi.STATION)
 wifi.sta.config({ssid=WIFI_SSID, pwd=WIFI_PASS, got_ip_cb=(function()
@@ -108,28 +94,42 @@ wifi.sta.config({ssid=WIFI_SSID, pwd=WIFI_PASS, got_ip_cb=(function()
 
     mqtt_client = mqtt.Client("clientid", 120)
 
-    mqtt_client:connect("192.168.7.137", 1883, 0, function(client)
+    mqtt_client:connect(MQTT_BROKER_HOST, 1883, 0, function(client)
       print("connected")
 
-      local color_topic = "/" .. wifi.sta.gethostname() .. "/color"
+      -- subscribe to mqtt topics
+      local state_topic   = MQTT_TOPIC_PREFIX .. "/state"
+      local command_topic = MQTT_TOPIC_PREFIX .. "/switch"
 
-      -- subscribe to color topic
-      client:subscribe(color_topic, 0, function(client)
-        print("subscribed to " .. color_topic)
-      end)
+      mqtt_subscribe(client, state_topic)
+      mqtt_subscribe(client, command_topic)
 
-      -- handle color messages
+
+      -- handle messages
       client:on("message", function(client, topic, message)
         local payload = string_split(string_trim(message), ':')
 
-        if payload[2] then
-            set_color_hex(tonumber(payload[1]), payload[2])
-        else
-            set_color_hex(2, payload[1])
+        -- handle state change
+        if topic == state_topic then
+          local rgb = string_split(string_trim(message), ',')
+
+          set_color(2, tonumber(rgb[1]), tonumber(rgb[2]), tonumber(rgb[3]))
         end
+
+        -- handle on/off commands
+        if topic == command_topic then
+          local command = string_trim(message)
+
+          if command == "ON" then
+            set_color(2, 255, 255, 255)
+          elseif command == "OFF" then
+            set_color(2, 0, 0, 0)
+          end
+        end
+
       end)
     end,
     function(client, reason)
         print("MQTT connection failed, reason: " .. reason)
-    end) 
+    end)
 end)})
