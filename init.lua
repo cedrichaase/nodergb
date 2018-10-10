@@ -64,7 +64,7 @@ set_color_hex = function(addr, hexcolor)
     local length = string.len(hexcolor)
 
     r, g, b = 0, 0, 0
-    
+
     if length == 6 then
         r = string.sub(hexcolor, 1, 2)
         g = string.sub(hexcolor, 3, 4)
@@ -110,7 +110,7 @@ wifi.sta.config({ssid=WIFI_SSID, pwd=WIFI_PASS, got_ip_cb=(function()
 
     mqtt_client:connect("192.168.7.137", 1883, 0, function(client)
       print("connected")
-    
+
       local color_topic = "/" .. wifi.sta.gethostname() .. "/color"
 
       -- subscribe to color topic
@@ -121,7 +121,7 @@ wifi.sta.config({ssid=WIFI_SSID, pwd=WIFI_PASS, got_ip_cb=(function()
       -- handle color messages
       client:on("message", function(client, topic, message)
         local payload = string_split(string_trim(message), ':')
-        
+
         if payload[2] then
             set_color_hex(tonumber(payload[1]), payload[2])
         else
@@ -131,5 +131,5 @@ wifi.sta.config({ssid=WIFI_SSID, pwd=WIFI_PASS, got_ip_cb=(function()
     end,
     function(client, reason)
         print("MQTT connection failed, reason: " .. reason)
-    end)    
+    end) 
 end)})
