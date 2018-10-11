@@ -16,7 +16,18 @@ WIFI_PASS = "changeme"
 
 -- MQTT settings
 MQTT_BROKER_HOST = "rainboschwan"
-MQTT_TOPIC_PREFIX = "home/light1"
+MQTT_TOPIC_PREFIX = "cedric/light1"
+
+-- subscribe to mqtt topics
+STATE_TOPIC = MQTT_TOPIC_PREFIX .. "/state"
+COMMAND_TOPIC = MQTT_TOPIC_PREFIX .. "/switch"
+
+
+-- color state / initial colors
+RED = 255
+GREEN = 138
+BLUE = 20
+
 
 -- trims a string
 function string_trim(s)
@@ -42,7 +53,26 @@ set_duty_8bit = function(pin, duty)
     pwm.setduty(pin, duty * 4)
 end
 
+publish_rgb_state = function(client)
+    local payload = RED .. "," .. GREEN .. "," .. BLUE
+    client:publish("rgb_state_topic", payload, 0, 1)
+    print("published " .. payload)
+end
+
+publish_state = function(client)
+    -- fixme
+    local payload = "ON"
+    if RED == 0 then
+        payload = "OFF"
+    end
+
+    client:publish(STATE_TOPIC, payload, 0, 1)
+    print("published " .. payload)
+end
+
 set_color = function(addr, red, green, blue)
+    print("set_color(" .. addr .. ", " .. red .. ", " .. green .. ", " .. blue .. ")")
+
     if addr == 0 then
         set_duty_8bit(PIN_0_RED, red)
         set_duty_8bit(PIN_0_GREEN, green)
@@ -59,6 +89,10 @@ set_color = function(addr, red, green, blue)
         set_duty_8bit(PIN_1_GREEN, green)
         set_duty_8bit(PIN_1_BLUE, blue)
     end
+
+    RED = red
+    GREEN = green
+    BLUE = blue
 end
 
 -- setup pwms
@@ -77,14 +111,7 @@ pwm.start(PIN_1_GREEN)
 pwm.start(PIN_1_BLUE)
 
 -- set color to warm white
-set_color_hex(2, 'ff8a14');
-
-
-mqtt_subscribe = function(client, topic)
-  client:subscribe(topic, 0, function(client)
-    print("subscribed to " .. topic)
-  end)
-end
+set_color(2, RED, GREEN, BLUE);
 
 
 -- setup wifi
@@ -97,12 +124,11 @@ wifi.sta.config({ssid=WIFI_SSID, pwd=WIFI_PASS, got_ip_cb=(function()
     mqtt_client:connect(MQTT_BROKER_HOST, 1883, 0, function(client)
       print("connected")
 
-      -- subscribe to mqtt topics
-      local state_topic   = MQTT_TOPIC_PREFIX .. "/state"
-      local command_topic = MQTT_TOPIC_PREFIX .. "/switch"
 
-      mqtt_subscribe(client, state_topic)
-      mqtt_subscribe(client, command_topic)
+
+      client:subscribe(COMMAND_TOPIC, 0, function(client)
+        print("subscribed to " .. COMMAND_TOPIC)
+      end)
 
 
       -- handle messages
@@ -110,22 +136,28 @@ wifi.sta.config({ssid=WIFI_SSID, pwd=WIFI_PASS, got_ip_cb=(function()
         local payload = string_split(string_trim(message), ':')
 
         -- handle state change
-        if topic == state_topic then
+        if topic == "rgb_command_topic" then
+          print("received state msg " .. message)
           local rgb = string_split(string_trim(message), ',')
 
           set_color(2, tonumber(rgb[1]), tonumber(rgb[2]), tonumber(rgb[3]))
         end
 
         -- handle on/off commands
-        if topic == command_topic then
+        if topic == COMMAND_TOPIC then
           local command = string_trim(message)
 
+          print("received command " .. command)
+
           if command == "ON" then
-            set_color(2, 255, 255, 255)
+            set_color(2, 255, 138, 20)
           elseif command == "OFF" then
             set_color(2, 0, 0, 0)
           end
+
+          publish_state(client)
         end
+
 
       end)
     end,
