@@ -1,3 +1,89 @@
+-- Library Code
+
+-- String functions
+function string_trim(s)
+  return (s:gsub("^%s*(.-)%s*$", "%1"))
+end
+
+function string_split(str, delimiter)
+  local result = { }
+  local from  = 1
+  local delim_from, delim_to = string.find( str, delimiter, from  )
+  while delim_from do
+    table.insert( result, string.sub( str, from , delim_from-1 ) )
+    from  = delim_to + 1
+    delim_from, delim_to = string.find( str, delimiter, from  )
+  end
+  table.insert( result, string.sub( str, from  ) )
+  return result
+end
+
+
+-- LightState class
+LightState = {}
+LightState.__index = LightState
+
+function LightState.new()
+  local self = setmetatable({}, LightState)
+  -- modify instance here
+
+  self.red = 255
+  self.green = 138
+  self.blue = 20
+
+  self.brightness = 255
+
+  self.state = "on"
+
+  return self
+end
+
+function LightState.get_rgb(self)
+  local function scale_color(color)
+    return math.floor(color * self.brightness / 255)
+  end
+
+  return {
+    r = scale_color(self.red),
+    g = scale_color(self.green),
+    b = scale_color(self.blue)
+  }
+end
+
+function LightState.from_string(self, str)
+  local parts = string_split(str, ",")
+
+  self.state = parts[1]
+
+  if parts[2] and #parts[2] > 0 then
+    print("setting brightness to " .. parts[2])
+    self.brightness = tonumber(parts[2])
+  end
+
+  if parts[3] and #parts[3] > 2 then
+    local rgb = string_split(parts[3], "-")
+
+    if #rgb < 3 then
+        return
+    end
+
+    self.red = tonumber(rgb[1])
+    self.green = tonumber(rgb[2])
+    self.blue = tonumber(rgb[3])
+  end
+end
+
+function LightState.to_string(self)
+  local rgb = self:get_rgb()
+  local rgbstring = rgb['r'] .. "-" .. rgb['g'] .. "-" .. rgb['b']
+
+  return self.state .. "," .. self.brightness .. "," .. rgbstring
+end
+
+
+
+
+
 -- define pins
 PIN_0_RED   = 1
 PIN_0_GREEN = 2
@@ -20,32 +106,12 @@ MQTT_TOPIC_PREFIX = "cedric/light1"
 
 -- subscribe to mqtt topics
 STATE_TOPIC = MQTT_TOPIC_PREFIX .. "/state"
-COMMAND_TOPIC = MQTT_TOPIC_PREFIX .. "/switch"
+COMMAND_TOPIC = MQTT_TOPIC_PREFIX .. "/set"
 
 
--- color state / initial colors
-RED = 255
-GREEN = 138
-BLUE = 20
+-- setup light states
+STATE = LightState.new()
 
-
--- trims a string
-function string_trim(s)
-  return (s:gsub("^%s*(.-)%s*$", "%1"))
-end
-
--- splits a string
-function string_split(inputstr, sep)
-        if sep == nil then
-                sep = "%s"
-        end
-        local t={} ; i=1
-        for str in string.gmatch(inputstr, "([^"..sep.."]+)") do
-                t[i] = str
-                i = i + 1
-        end
-        return t
-end
 
 -- sets the duty cycle with a max value of 255
 set_duty_8bit = function(pin, duty)
@@ -60,39 +126,31 @@ publish_rgb_state = function(client)
 end
 
 publish_state = function(client)
-    -- fixme
-    local payload = "ON"
-    if RED == 0 then
-        payload = "OFF"
-    end
+    local payload = STATE:to_string()
 
     client:publish(STATE_TOPIC, payload, 0, 1)
     print("published " .. payload)
 end
 
-set_color = function(addr, red, green, blue)
-    print("set_color(" .. addr .. ", " .. red .. ", " .. green .. ", " .. blue .. ")")
+display_state = function(state)
+  if state.state == "off" then
+    set_color(0, 0, 0)
+    return
+  end
 
-    if addr == 0 then
-        set_duty_8bit(PIN_0_RED, red)
-        set_duty_8bit(PIN_0_GREEN, green)
-        set_duty_8bit(PIN_0_BLUE, blue)
-    elseif addr == 1 then
-        set_duty_8bit(PIN_1_RED, red)
-        set_duty_8bit(PIN_1_GREEN, green)
-        set_duty_8bit(PIN_1_BLUE, blue)
-    elseif addr == 2 then
-        set_duty_8bit(PIN_0_RED, red)
-        set_duty_8bit(PIN_0_GREEN, green)
-        set_duty_8bit(PIN_0_BLUE, blue)
-        set_duty_8bit(PIN_1_RED, red)
-        set_duty_8bit(PIN_1_GREEN, green)
-        set_duty_8bit(PIN_1_BLUE, blue)
-    end
+  local rgb = state:get_rgb()
+  set_color(rgb['r'], rgb['g'], rgb['b'])
+end
 
-    RED = red
-    GREEN = green
-    BLUE = blue
+set_color = function(red, green, blue)
+    print("set_color(" .. red .. ", " .. green .. ", " .. blue .. ")")
+
+    set_duty_8bit(PIN_0_RED, red)
+    set_duty_8bit(PIN_0_GREEN, green)
+    set_duty_8bit(PIN_0_BLUE, blue)
+    set_duty_8bit(PIN_1_RED, red)
+    set_duty_8bit(PIN_1_GREEN, green)
+    set_duty_8bit(PIN_1_BLUE, blue)
 end
 
 -- setup pwms
@@ -109,9 +167,6 @@ pwm.setup(PIN_1_BLUE,  PWM_FREQ, 0)
 pwm.start(PIN_1_RED)
 pwm.start(PIN_1_GREEN)
 pwm.start(PIN_1_BLUE)
-
--- set color to warm white
-set_color(2, RED, GREEN, BLUE);
 
 
 -- setup wifi
@@ -133,31 +188,18 @@ wifi.sta.config({ssid=WIFI_SSID, pwd=WIFI_PASS, got_ip_cb=(function()
 
       -- handle messages
       client:on("message", function(client, topic, message)
-        local payload = string_split(string_trim(message), ':')
-
-        -- handle state change
-        if topic == "rgb_command_topic" then
-          print("received state msg " .. message)
-          local rgb = string_split(string_trim(message), ',')
-
-          set_color(2, tonumber(rgb[1]), tonumber(rgb[2]), tonumber(rgb[3]))
-        end
-
         -- handle on/off commands
         if topic == COMMAND_TOPIC then
-          local command = string_trim(message)
+          local payload = string_trim(message)
 
-          print("received command " .. command)
+          print("received payload " .. payload)
 
-          if command == "ON" then
-            set_color(2, 255, 138, 20)
-          elseif command == "OFF" then
-            set_color(2, 0, 0, 0)
-          end
+          STATE = LightState.new()
+          STATE:from_string(payload)
+          display_state(STATE)
 
           publish_state(client)
         end
-
 
       end)
     end,
